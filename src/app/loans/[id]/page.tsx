@@ -1,0 +1,401 @@
+'use client'
+
+import { useEffect, useState, use } from 'react'
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+
+type Loan = {
+  id: string
+  principal_amount: number
+  interest_rate_snapshot: number | null
+  term_months: number
+  purpose: string | null
+  status: string
+  rejection_reason: string | null
+  borrowers: { id: string; full_name: string; status: string } | null
+  loan_products: { id: string; name: string; interest_rate: number } | null
+}
+
+type Assessment = {
+  id: string
+  credit_score: number | null
+  debt_to_income_ratio: number | null
+  recommendation: string
+  notes: string
+  assessed_at: string
+}
+
+const statusMeta: Record<string, { label: string; cls: string }> = {
+  draft: { label: 'Draft', cls: 'b-gray' },
+  submitted: { label: 'Submitted', cls: 'b-blue' },
+  under_review: { label: 'Under Review', cls: 'b-amber' },
+  approved: { label: 'Approved', cls: 'b-violet' },
+  rejected: { label: 'Rejected', cls: 'b-rose' },
+  released: { label: 'Released', cls: 'b-blue' },
+  active: { label: 'Active', cls: 'b-emerald' },
+  fully_paid: { label: 'Fully Paid', cls: 'b-emerald' },
+  defaulted: { label: 'Defaulted', cls: 'b-rose' },
+  written_off: { label: 'Written Off', cls: 'b-gray' },
+  cancelled: { label: 'Cancelled', cls: 'b-gray' },
+}
+
+function peso(n: number) {
+  return '₱' + Number(n).toLocaleString('en-PH')
+}
+
+export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+
+  const [loan, setLoan] = useState<Loan | null>(null)
+  const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const [showAssessModal, setShowAssessModal] = useState(false)
+  const [assessForm, setAssessForm] = useState({
+    credit_score: '',
+    debt_to_income_ratio: '',
+    recommendation: 'approve',
+    notes: '',
+  })
+
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+
+  async function loadLoan() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('loans')
+      .select('*, borrowers(id, full_name, status), loan_products(id, name, interest_rate)')
+      .eq('id', id)
+      .single()
+
+    if (error) {
+      setErrorMsg(error.message)
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setLoan(data as any)
+    }
+
+    const { data: assessData } = await supabase
+      .from('credit_assessments')
+      .select('*')
+      .eq('loan_id', id)
+      .order('assessed_at', { ascending: false })
+
+    setAssessments(assessData || [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadLoan()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  // ---------- Actions ----------
+
+  async function handleSubmitLoan() {
+    if (!loan) return
+    setBusy(true)
+    setErrorMsg('')
+
+    // Guard: borrower must be active
+    if (loan.borrowers?.status !== 'active') {
+      setErrorMsg('Ang borrower ay hindi active. Hindi maaaring i-submit ang loan.')
+      setBusy(false)
+      return
+    }
+
+    const { error } = await supabase.from('loans').update({ status: 'submitted' }).eq('id', loan.id)
+    if (error) setErrorMsg(error.message)
+    else await loadLoan()
+    setBusy(false)
+  }
+
+  async function handleAssessmentSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!loan) return
+    setBusy(true)
+    setErrorMsg('')
+
+    const { error } = await supabase.from('credit_assessments').insert({
+      organization_id: '00000000-0000-0000-0000-000000000001',
+      loan_id: loan.id,
+      assessed_by: (await getFirstUserId()),
+      credit_score: assessForm.credit_score ? Number(assessForm.credit_score) : null,
+      debt_to_income_ratio: assessForm.debt_to_income_ratio ? Number(assessForm.debt_to_income_ratio) : null,
+      recommendation: assessForm.recommendation,
+      notes: assessForm.notes,
+    })
+
+    if (error) {
+      setErrorMsg(error.message)
+      setBusy(false)
+      return
+    }
+
+    // I-move ang loan papuntang under_review (kung galing pa lang sa submitted)
+    if (loan.status === 'submitted') {
+      await supabase.from('loans').update({ status: 'under_review' }).eq('id', loan.id)
+    }
+
+    setAssessForm({ credit_score: '', debt_to_income_ratio: '', recommendation: 'approve', notes: '' })
+    setShowAssessModal(false)
+    setBusy(false)
+    await loadLoan()
+  }
+
+  async function handleApprove() {
+    if (!loan || !loan.loan_products) return
+    setBusy(true)
+    setErrorMsg('')
+
+    // Guard: dapat may assessment na recommendation = approve
+    const hasApproval = assessments.some((a) => a.recommendation === 'approve')
+    if (!hasApproval) {
+      setErrorMsg('Kailangan muna ng credit assessment na may recommendation na "Approve" bago ma-approve ang loan.')
+      setBusy(false)
+      return
+    }
+
+    const { error } = await supabase
+      .from('loans')
+      .update({
+        status: 'approved',
+        interest_rate_snapshot: loan.loan_products.interest_rate,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', loan.id)
+
+    if (error) setErrorMsg(error.message)
+    else await loadLoan()
+    setBusy(false)
+  }
+
+  async function handleReject(e: React.FormEvent) {
+    e.preventDefault()
+    if (!loan) return
+    setBusy(true)
+    setErrorMsg('')
+
+    const { error } = await supabase
+      .from('loans')
+      .update({ status: 'rejected', rejection_reason: rejectReason })
+      .eq('id', loan.id)
+
+    if (error) setErrorMsg(error.message)
+    else {
+      setShowRejectModal(false)
+      await loadLoan()
+    }
+    setBusy(false)
+  }
+
+  async function handleRelease() {
+    if (!loan) return
+    setBusy(true)
+    setErrorMsg('')
+
+    // Tinatawag natin dito ang SQL function na gagawa ng buong
+    // payment schedule AT mag-a-active sa loan, bilang isang
+    // transaction (rollback lahat kung may error).
+    const { error } = await supabase.rpc('release_loan', { p_loan_id: loan.id })
+
+    if (error) setErrorMsg(error.message)
+    else await loadLoan()
+    setBusy(false)
+  }
+
+  // Helper: kunin lang ang unang user sa users table (temporary,
+  // hanggang wala pa tayong tunay na login/auth)
+  async function getFirstUserId() {
+    const { data } = await supabase.from('users').select('id').limit(1).single()
+    return data?.id
+  }
+
+  if (loading) return <p>Loading...</p>
+  if (!loan) return <p>Loan not found.</p>
+
+  return (
+    <>
+      <div className="breadcrumb">
+        <Link href="/loans">Loans</Link> <i className="bi bi-chevron-right" style={{ fontSize: 10 }}></i> {loan.id.slice(0, 8)}
+      </div>
+
+      <div className="page-header">
+        <div className="page-header-left">
+          <div className="page-title">
+            {loan.borrowers?.full_name} <span className={`badge ${statusMeta[loan.status]?.cls}`}>{statusMeta[loan.status]?.label}</span>
+          </div>
+          <div className="page-subtitle">{loan.loan_products?.name} · {peso(loan.principal_amount)} · {loan.term_months} months</div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          {loan.status === 'draft' && (
+            <button className="btn btn-primary" onClick={handleSubmitLoan} disabled={busy}>
+              Submit Application
+            </button>
+          )}
+          {(loan.status === 'submitted' || loan.status === 'under_review') && (
+            <button className="btn btn-secondary" onClick={() => setShowAssessModal(true)} disabled={busy}>
+              Record Credit Assessment
+            </button>
+          )}
+          {loan.status === 'under_review' && (
+            <>
+              <button className="btn btn-danger" onClick={() => setShowRejectModal(true)} disabled={busy}>
+                Reject
+              </button>
+              <button className="btn btn-success" onClick={handleApprove} disabled={busy}>
+                Approve
+              </button>
+            </>
+          )}
+          {loan.status === 'approved' && (
+            <button className="btn btn-primary" onClick={handleRelease} disabled={busy}>
+              {busy ? 'Releasing...' : 'Release Loan'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {errorMsg && (
+        <p style={{ color: 'var(--rose-600)', background: 'var(--rose-50)', padding: '10px 14px', borderRadius: 8, marginBottom: 16 }}>
+          {errorMsg}
+        </p>
+      )}
+
+      <div className="detail-grid">
+        <div>
+          <div className="panel" style={{ marginBottom: 16 }}>
+            <div className="section-title">Loan Details</div>
+            <div className="info-row"><span className="k">Borrower</span><span className="v">{loan.borrowers?.full_name}</span></div>
+            <div className="info-row"><span className="k">Product</span><span className="v">{loan.loan_products?.name}</span></div>
+            <div className="info-row"><span className="k">Principal Amount</span><span className="v">{peso(loan.principal_amount)}</span></div>
+            <div className="info-row"><span className="k">Term</span><span className="v">{loan.term_months} months</span></div>
+            <div className="info-row"><span className="k">Interest Rate</span><span className="v">{loan.interest_rate_snapshot ?? loan.loan_products?.interest_rate}%/mo</span></div>
+            <div className="info-row"><span className="k">Purpose</span><span className="v">{loan.purpose || '—'}</span></div>
+            {loan.status === 'rejected' && (
+              <div className="info-row"><span className="k">Rejection Reason</span><span className="v">{loan.rejection_reason}</span></div>
+            )}
+          </div>
+
+          <div className="panel">
+            <div className="section-title">Credit Assessments</div>
+            {assessments.length === 0 ? (
+              <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Wala pang assessment.</p>
+            ) : (
+              <div className="timeline">
+                {assessments.map((a) => (
+                  <div className="tl-item" key={a.id}>
+                    <div className="tl-dot"></div>
+                    <div>
+                      <div className="tl-title">
+                        {a.recommendation === 'approve' ? 'Recommended: Approve' : a.recommendation === 'reject' ? 'Recommended: Reject' : 'Needs more info'}
+                        {a.credit_score && ` · Score: ${a.credit_score}`}
+                      </div>
+                      <div className="tl-sub">{a.notes}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="section-title">Status</div>
+          <span className={`badge ${statusMeta[loan.status]?.cls}`} style={{ fontSize: 14, padding: '6px 14px' }}>
+            {statusMeta[loan.status]?.label}
+          </span>
+          {loan.status === 'active' && (
+            <p style={{ marginTop: 12, fontSize: 13, color: 'var(--gray-500)' }}>
+              <Link href={`/loans/${loan.id}/schedule`} style={{ color: 'var(--blue-600)', fontWeight: 600 }}>
+                Tignan ang Payment Schedule →
+              </Link>
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ---------- Credit Assessment Modal ---------- */}
+      {showAssessModal && (
+        <div className="modal-overlay open">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Record Credit Assessment</h3>
+              <button className="modal-close" onClick={() => setShowAssessModal(false)}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <form onSubmit={handleAssessmentSubmit}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Credit Score (optional)</label>
+                    <input className="form-input" type="number" value={assessForm.credit_score} onChange={(e) => setAssessForm({ ...assessForm, credit_score: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Debt-to-Income Ratio (optional)</label>
+                    <input className="form-input" type="number" step="0.01" value={assessForm.debt_to_income_ratio} onChange={(e) => setAssessForm({ ...assessForm, debt_to_income_ratio: e.target.value })} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Recommendation</label>
+                  <select className="form-select" value={assessForm.recommendation} onChange={(e) => setAssessForm({ ...assessForm, recommendation: e.target.value })}>
+                    <option value="approve">Approve</option>
+                    <option value="reject">Reject</option>
+                    <option value="needs_more_info">Needs more info</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Notes</label>
+                  <textarea className="form-textarea" rows={4} required value={assessForm.notes} onChange={(e) => setAssessForm({ ...assessForm, notes: e.target.value })}></textarea>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAssessModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={busy}>
+                  {busy ? 'Saving...' : 'Save Assessment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Reject Modal ---------- */}
+      {showRejectModal && (
+        <div className="modal-overlay open">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Reject Application</h3>
+              <button className="modal-close" onClick={() => setShowRejectModal(false)}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <form onSubmit={handleReject}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Rejection Reason</label>
+                  <textarea className="form-textarea" rows={3} required value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}></textarea>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowRejectModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-danger" disabled={busy}>
+                  {busy ? 'Saving...' : 'Reject Application'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
