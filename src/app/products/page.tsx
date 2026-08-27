@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
 
 const ORG_ID = '00000000-0000-0000-0000-000000000001'
 
@@ -23,6 +24,9 @@ function peso(n: number) {
 }
 
 export default function ProductsPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
   const [products, setProducts] = useState<LoanProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
@@ -98,6 +102,18 @@ export default function ProductsPage() {
     setShowModal(false)
     setSaving(false)
     loadProducts()
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="table-wrap">
+        <div className="empty-state">
+          <i className="bi bi-shield-lock"></i>
+          <h4>Access Denied</h4>
+          <p>Only Admin can manage loan products.</p>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -10,6 +10,7 @@ type Loan = {
   id: string
   principal_amount: number
   status: string
+  released_at: string | null
   borrowers: { full_name: string } | null
   loan_products: { name: string } | null
 }
@@ -32,109 +33,249 @@ function peso(n: number) {
   return '₱' + Number(n).toLocaleString('en-PH')
 }
 
+function loanCode(id: string) {
+  return 'LN-' + id.slice(0, 4).toUpperCase()
+}
+
 export default function Home() {
   const [loading, setLoading] = useState(true)
-  const [totalBorrowers, setTotalBorrowers] = useState(0)
-  const [activeLoans, setActiveLoans] = useState(0)
-  const [totalOutstanding, setTotalOutstanding] = useState(0)
-  const [overdueCount, setOverdueCount] = useState(0)
+  const [outstandingPortfolio, setOutstandingPortfolio] = useState(0)
+  const [activeLoansCount, setActiveLoansCount] = useState(0)
+  const [pendingApproval, setPendingApproval] = useState(0)
+  const [overdueAmount, setOverdueAmount] = useState(0)
+  const [collectionsMTD, setCollectionsMTD] = useState(0)
+  const [disbursedMTD, setDisbursedMTD] = useState(0)
   const [recentLoans, setRecentLoans] = useState<Loan[]>([])
+  const [monthlyData, setMonthlyData] = useState<{ label: string; disbursed: number; collected: number }[]>([])
+  const [productBreakdown, setProductBreakdown] = useState<{ name: string; pct: number }[]>([])
 
   useEffect(() => {
     async function load() {
       setLoading(true)
 
-      const { count: borrowerCount } = await supabase
-        .from('borrowers')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', ORG_ID)
+      const now = new Date()
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-      const { count: activeLoanCount } = await supabase
+      const { count: activeCount } = await supabase
         .from('loans')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', ORG_ID)
         .eq('status', 'active')
 
-      const { data: outstandingRows } = await supabase
+      const { count: pendingCount } = await supabase
+        .from('loans')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', ORG_ID)
+        .in('status', ['submitted', 'under_review'])
+
+      const { data: scheduleRows } = await supabase
         .from('payment_schedules')
-        .select('total_due, amount_paid')
+        .select('due_date, total_due, amount_paid, status')
         .eq('organization_id', ORG_ID)
         .neq('status', 'paid')
 
-      const outstanding = (outstandingRows || []).reduce(
+      const outstanding = (scheduleRows || []).reduce(
         (sum, r) => sum + (Number(r.total_due) - Number(r.amount_paid)),
         0
       )
+      const overdue = (scheduleRows || [])
+        .filter((r) => new Date(r.due_date) < now)
+        .reduce((sum, r) => sum + (Number(r.total_due) - Number(r.amount_paid)), 0)
 
-      const { count: overdueRowCount } = await supabase
-        .from('payment_schedules')
-        .select('*', { count: 'exact', head: true })
+      const { data: paymentsMTD } = await supabase
+        .from('payments')
+        .select('amount, received_at')
         .eq('organization_id', ORG_ID)
-        .eq('status', 'overdue')
+        .gte('received_at', startOfMonth)
 
+      const collected = (paymentsMTD || []).reduce((sum, p) => sum + Number(p.amount), 0)
+
+      const { data: releasedMTD } = await supabase
+        .from('loans')
+        .select('principal_amount, released_at')
+        .eq('organization_id', ORG_ID)
+        .gte('released_at', startOfMonth)
+
+      const disbursed = (releasedMTD || []).reduce((sum, l) => sum + Number(l.principal_amount), 0)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: recentLoanData } = await supabase
         .from('loans')
-        .select('id, principal_amount, status, borrowers(full_name), loan_products(name)')
+        .select('id, principal_amount, status, released_at, borrowers(full_name), loan_products(name)')
         .eq('organization_id', ORG_ID)
         .order('created_at', { ascending: false })
         .limit(5)
 
-      setTotalBorrowers(borrowerCount || 0)
-      setActiveLoans(activeLoanCount || 0)
-      setTotalOutstanding(outstanding)
-      setOverdueCount(overdueRowCount || 0)
+      // ---------- Disbursed vs Collected, last 6 months ----------
+      const { data: allLoansForChart } = await supabase
+        .from('loans')
+        .select('principal_amount, released_at')
+        .eq('organization_id', ORG_ID)
+        .not('released_at', 'is', null)
+
+      const { data: allPaymentsForChart } = await supabase
+        .from('payments')
+        .select('amount, received_at')
+        .eq('organization_id', ORG_ID)
+
+      const months: { label: string; year: number; month: number; disbursed: number; collected: number }[] = []
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        months.push({ label: d.toLocaleDateString('en-PH', { month: 'short' }), year: d.getFullYear(), month: d.getMonth(), disbursed: 0, collected: 0 })
+      }
+
+      ;(allLoansForChart || []).forEach((l) => {
+        const d = new Date(l.released_at as string)
+        const m = months.find((mo) => mo.year === d.getFullYear() && mo.month === d.getMonth())
+        if (m) m.disbursed += Number(l.principal_amount)
+      })
+      ;(allPaymentsForChart || []).forEach((p) => {
+        const d = new Date(p.received_at)
+        const m = months.find((mo) => mo.year === d.getFullYear() && mo.month === d.getMonth())
+        if (m) m.collected += Number(p.amount)
+      })
+
+      // ---------- Portfolio by Product ----------
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: allLoansForProduct } = await supabase
+        .from('loans')
+        .select('principal_amount, loan_products(name)')
+        .eq('organization_id', ORG_ID)
+
+      const byProduct: Record<string, number> = {}
+      let totalPrincipal = 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(allLoansForProduct as any[] || []).forEach((l) => {
+        const name = l.loan_products?.name || 'Unknown'
+        byProduct[name] = (byProduct[name] || 0) + Number(l.principal_amount)
+        totalPrincipal += Number(l.principal_amount)
+      })
+      const productList = Object.entries(byProduct)
+        .map(([name, amount]) => ({ name, pct: totalPrincipal > 0 ? Math.round((amount / totalPrincipal) * 100) : 0 }))
+        .sort((a, b) => b.pct - a.pct)
+
+      setOutstandingPortfolio(outstanding)
+      setActiveLoansCount(activeCount || 0)
+      setPendingApproval(pendingCount || 0)
+      setOverdueAmount(overdue)
+      setCollectionsMTD(collected)
+      setDisbursedMTD(disbursed)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setRecentLoans((recentLoanData as any) || [])
+      setMonthlyData(months)
+      setProductBreakdown(productList)
       setLoading(false)
     }
 
     load()
   }, [])
 
+  const maxChartValue = Math.max(1, ...monthlyData.flatMap((m) => [m.disbursed, m.collected]))
+  const productColors = ['var(--blue-600)', 'var(--violet-600)', 'var(--amber-600)', 'var(--emerald-600)', 'var(--rose-600)']
+
   return (
     <>
       <div className="page-header">
         <div className="page-header-left">
           <div className="page-title">Dashboard</div>
-          <div className="page-subtitle">Overview ng loan portfolio mo</div>
+          <div className="page-subtitle">Portfolio overview for Loan Management System</div>
         </div>
+        <Link href="/loans" className="btn btn-primary">
+          <i className="bi bi-plus-lg"></i> New Loan Application
+        </Link>
       </div>
 
       {loading ? (
         <p>Loading...</p>
       ) : (
         <>
-          <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
             <div className="kpi-card">
-              <div className="kpi-icon tint-blue"><i className="bi bi-people"></i></div>
-              <div className="kpi-value">{totalBorrowers}</div>
-              <div className="kpi-label">Total Borrowers</div>
+              <div className="kpi-icon tint-blue"><i className="bi bi-briefcase"></i></div>
+              <div className="kpi-value">{peso(outstandingPortfolio)}</div>
+              <div className="kpi-label">Outstanding Portfolio</div>
+              <div className="kpi-sub">Across {activeLoansCount} active loans</div>
             </div>
             <div className="kpi-card">
-              <div className="kpi-icon tint-emerald"><i className="bi bi-file-earmark-check"></i></div>
-              <div className="kpi-value">{activeLoans}</div>
+              <div className="kpi-icon tint-emerald"><i className="bi bi-check-circle"></i></div>
+              <div className="kpi-value">{activeLoansCount}</div>
               <div className="kpi-label">Active Loans</div>
+              <div className="kpi-sub">Currently disbursed</div>
             </div>
             <div className="kpi-card">
-              <div className="kpi-icon tint-violet"><i className="bi bi-cash-stack"></i></div>
-              <div className="kpi-value">{peso(totalOutstanding)}</div>
-              <div className="kpi-label">Total Outstanding</div>
+              <div className="kpi-icon tint-amber"><i className="bi bi-hourglass-split"></i></div>
+              <div className="kpi-value">{pendingApproval}</div>
+              <div className="kpi-label">Pending Approval</div>
+              <div className="kpi-sub">Awaiting credit review</div>
             </div>
             <div className="kpi-card">
               <div className="kpi-icon tint-rose"><i className="bi bi-exclamation-triangle"></i></div>
-              <div className="kpi-value">{overdueCount}</div>
-              <div className="kpi-label">Overdue Installments</div>
+              <div className="kpi-value">{peso(overdueAmount)}</div>
+              <div className="kpi-label">Overdue Amount</div>
+              <div className="kpi-sub">Past due</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon tint-violet"><i className="bi bi-graph-up-arrow"></i></div>
+              <div className="kpi-value">{peso(collectionsMTD)}</div>
+              <div className="kpi-label">Collections (MTD)</div>
+              <div className="kpi-sub">Received this month</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon tint-gray"><i className="bi bi-send"></i></div>
+              <div className="kpi-value">{peso(disbursedMTD)}</div>
+              <div className="kpi-label">Disbursed (MTD)</div>
+              <div className="kpi-sub">Released this month</div>
             </div>
           </div>
 
-          <div className="section-title" style={{ marginTop: 8 }}>Recent Loans</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, marginBottom: 20 }}>
+            <div className="panel">
+              <div className="section-title">Disbursed vs. Collected — last 6 months</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 18, height: 180, paddingTop: 10 }}>
+                {monthlyData.map((m) => (
+                  <div key={m.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 140 }}>
+                      <div style={{ width: 14, height: `${(m.disbursed / maxChartValue) * 140}px`, background: 'var(--blue-600)', borderRadius: '3px 3px 0 0' }}></div>
+                      <div style={{ width: 14, height: `${(m.collected / maxChartValue) * 140}px`, background: 'var(--gray-200)', borderRadius: '3px 3px 0 0' }}></div>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12.5, color: 'var(--gray-600)' }}>
+                <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: 'var(--blue-600)', marginRight: 5 }}></span>Disbursed</span>
+                <span><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: 'var(--gray-200)', marginRight: 5 }}></span>Collected</span>
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="section-title">Portfolio by Product</div>
+              {productBreakdown.length === 0 ? (
+                <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>No data yet.</p>
+              ) : (
+                productBreakdown.map((p, idx) => (
+                  <div key={p.name} style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600 }}>{p.name}</span>
+                      <span>{p.pct}%</span>
+                    </div>
+                    <div style={{ height: 8, background: 'var(--gray-100)', borderRadius: 999 }}>
+                      <div style={{ height: 8, width: `${p.pct}%`, background: productColors[idx % productColors.length], borderRadius: 999 }}></div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="section-title">Recent Loan Applications</div>
           {recentLoans.length === 0 ? (
             <div className="table-wrap">
               <div className="empty-state">
                 <i className="bi bi-file-earmark-text"></i>
-                <h4>Wala pang loan</h4>
+                <h4>No loans yet</h4>
                 <p>
-                  Pumunta sa <Link href="/loans" style={{ color: 'var(--blue-600)', fontWeight: 600 }}>Loans</Link> para gumawa ng una.
+                  Go to <Link href="/loans" style={{ color: 'var(--blue-600)', fontWeight: 600 }}>Loans</Link> to create your first one.
                 </p>
               </div>
             </div>
@@ -143,6 +284,7 @@ export default function Home() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th>Loan ID</th>
                     <th>Borrower</th>
                     <th>Product</th>
                     <th>Principal</th>
@@ -152,7 +294,8 @@ export default function Home() {
                 <tbody>
                   {recentLoans.map((l) => (
                     <tr key={l.id} onClick={() => (window.location.href = `/loans/${l.id}`)}>
-                      <td className="cell-strong">{l.borrowers?.full_name || '—'}</td>
+                      <td className="cell-strong">{loanCode(l.id)}</td>
+                      <td>{l.borrowers?.full_name || '—'}</td>
                       <td>{l.loan_products?.name || '—'}</td>
                       <td>{peso(l.principal_amount)}</td>
                       <td>

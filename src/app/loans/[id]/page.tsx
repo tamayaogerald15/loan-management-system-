@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
 
 type Loan = {
   id: string
@@ -45,6 +46,8 @@ function peso(n: number) {
 
 export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
 
   const [loan, setLoan] = useState<Loan | null>(null)
   const [assessments, setAssessments] = useState<Assessment[]>([])
@@ -148,6 +151,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
   async function handleApprove() {
     if (!loan || !loan.loan_products) return
+    if (!isAdmin) {
+      setErrorMsg('Only Admin can approve loans.')
+      return
+    }
     setBusy(true)
     setErrorMsg('')
 
@@ -176,6 +183,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   async function handleReject(e: React.FormEvent) {
     e.preventDefault()
     if (!loan) return
+    if (!isAdmin) {
+      setErrorMsg('Only Admin can reject loans.')
+      return
+    }
     setBusy(true)
     setErrorMsg('')
 
@@ -194,6 +205,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
   async function handleRelease() {
     if (!loan) return
+    if (!isAdmin) {
+      setErrorMsg('Only Admin can release loans.')
+      return
+    }
     setBusy(true)
     setErrorMsg('')
 
@@ -242,7 +257,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               Record Credit Assessment
             </button>
           )}
-          {loan.status === 'under_review' && (
+          {loan.status === 'under_review' && isAdmin && (
             <>
               <button className="btn btn-danger" onClick={() => setShowRejectModal(true)} disabled={busy}>
                 Reject
@@ -252,10 +267,16 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               </button>
             </>
           )}
-          {loan.status === 'approved' && (
+          {loan.status === 'under_review' && !isAdmin && (
+            <span className="badge b-gray">Waiting for Admin approval</span>
+          )}
+          {loan.status === 'approved' && isAdmin && (
             <button className="btn btn-primary" onClick={handleRelease} disabled={busy}>
               {busy ? 'Releasing...' : 'Release Loan'}
             </button>
+          )}
+          {loan.status === 'approved' && !isAdmin && (
+            <span className="badge b-gray">Waiting for Admin to release</span>
           )}
         </div>
       </div>
@@ -312,7 +333,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           {loan.status === 'active' && (
             <p style={{ marginTop: 12, fontSize: 13, color: 'var(--gray-500)' }}>
               <Link href={`/loans/${loan.id}/schedule`} style={{ color: 'var(--blue-600)', fontWeight: 600 }}>
-                Tignan ang Payment Schedule →
+                View Payment Schedule →
               </Link>
             </p>
           )}
