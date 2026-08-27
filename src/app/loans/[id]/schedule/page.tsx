@@ -123,7 +123,23 @@ export default function SchedulePage({ params }: { params: Promise<{ id: string 
     await loadData()
   }
 
-  if (loading) return <p>Loading...</p>
+  if (loading) {
+    return (
+      <>
+        <div className="breadcrumb"><Link href="/loans">Loans</Link> <i className="bi bi-chevron-right" style={{ fontSize: 10 }}></i> ...</div>
+        <div className="page-header"><div className="page-header-left"><div className="skeleton skeleton-line h-20 w-60" style={{ height: 24, marginBottom: 8 }}></div></div></div>
+        <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 20 }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="kpi-card">
+              <div className="skeleton skeleton-card" style={{ height: 40, width: 40, borderRadius: 10, marginBottom: 12 }}></div>
+              <div className="skeleton skeleton-line h-20 w-60" style={{ marginBottom: 8 }}></div>
+              <div className="skeleton skeleton-line w-40" style={{ height: 12 }}></div>
+            </div>
+          ))}
+        </div>
+      </>
+    )
+  }
 
   const totalDue = installments.reduce((sum, i) => sum + Number(i.total_due), 0)
   const totalPaid = installments.reduce((sum, i) => sum + Number(i.amount_paid), 0)
@@ -145,9 +161,10 @@ export default function SchedulePage({ params }: { params: Promise<{ id: string 
       </div>
 
       {errorMsg && (
-        <p style={{ color: 'var(--rose-600)', background: 'var(--rose-50)', padding: '10px 14px', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ color: 'var(--rose-700)', background: 'var(--rose-50)', border: '1px solid var(--rose-200)', padding: '10px 14px', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className="bi bi-exclamation-circle" style={{ fontSize: 15 }}></i>
           {errorMsg}
-        </p>
+        </div>
       )}
 
       <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 20 }}>
@@ -199,7 +216,7 @@ export default function SchedulePage({ params }: { params: Promise<{ id: string 
                 <td>
                   {i.status !== 'paid' && (
                     <button className="btn btn-sm btn-primary" onClick={() => openPayModal(i)}>
-                      Record Payment
+                      <i className="bi bi-cash"></i> Record Payment
                     </button>
                   )}
                 </td>
