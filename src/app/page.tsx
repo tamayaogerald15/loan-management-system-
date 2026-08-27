@@ -239,7 +239,7 @@ export default function Home() {
                     <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 150 }}>
                       <div
                         onMouseEnter={() => setHoveredBar({ month: m.label, type: 'disbursed', value: m.disbursed })}
-                        style={{ width: 18, height: `${Math.max(2, (m.disbursed / maxChartValue) * 150)}px`, background: 'linear-gradient(180deg, var(--blue-600), var(--blue-700))`, borderRadius: '4px 4px 0 0', transition: 'all 0.2s', opacity: hoveredBar && hoveredBar.month === m.label && hoveredBar.type !== 'disbursed' ? 0.4 : 1 }}
+                        style={{ width: 18, height: `${Math.max(2, (m.disbursed / maxChartValue) * 150)}px`, background: 'linear-gradient(180deg, var(--blue-600), var(--blue-700))', borderRadius: '4px 4px 0 0', transition: 'all 0.2s', opacity: hoveredBar && hoveredBar.month === m.label && hoveredBar.type !== 'disbursed' ? 0.4 : 1 }}
                       ></div>
                       <div
                         onMouseEnter={() => setHoveredBar({ month: m.label, type: 'collected', value: m.collected })}
