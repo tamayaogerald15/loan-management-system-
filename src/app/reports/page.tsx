@@ -96,7 +96,15 @@ export default function ReportsPage() {
       </div>
 
       {loading ? (
-        <p>Loading...</p>
+        <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="kpi-card">
+              <div className="skeleton skeleton-card" style={{ height: 40, width: 40, borderRadius: 10, marginBottom: 12 }}></div>
+              <div className="skeleton skeleton-line h-20 w-60" style={{ marginBottom: 8 }}></div>
+              <div className="skeleton skeleton-line w-40" style={{ height: 12 }}></div>
+            </div>
+          ))}
+        </div>
       ) : (
         <>
           <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
