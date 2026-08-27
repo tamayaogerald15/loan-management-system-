@@ -129,13 +129,20 @@ export default function ProductsPage() {
       </div>
 
       {errorMsg && (
-        <p style={{ color: 'var(--rose-600)', background: 'var(--rose-50)', padding: '10px 14px', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ color: 'var(--rose-700)', background: 'var(--rose-50)', border: '1px solid var(--rose-200)', padding: '10px 14px', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className="bi bi-exclamation-circle" style={{ fontSize: 15 }}></i>
           {errorMsg}
-        </p>
+        </div>
       )}
 
       {loading ? (
-        <p>Loading...</p>
+        <div className="table-wrap">
+          <div style={{ padding: 24 }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton skeleton-table-row" style={{ marginBottom: 8 }}></div>
+            ))}
+          </div>
+        </div>
       ) : products.length === 0 ? (
         <div className="table-wrap">
           <div className="empty-state">
