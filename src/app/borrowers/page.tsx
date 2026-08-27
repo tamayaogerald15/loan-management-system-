@@ -38,26 +38,30 @@ function peso(n: number) {
   return '₱' + Number(n).toLocaleString('en-PH')
 }
 
+const emptyForm = {
+  full_name: '',
+  date_of_birth: '',
+  national_id_number: '',
+  email: '',
+  phone: '',
+  address: '',
+  employment_status: 'employed',
+  monthly_income: '',
+}
+
 export default function BorrowersPage() {
   const [borrowers, setBorrowers] = useState<Borrower[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingBorrower, setEditingBorrower] = useState<Borrower | null>(null)
 
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
 
-  const [form, setForm] = useState({
-    full_name: '',
-    date_of_birth: '',
-    national_id_number: '',
-    email: '',
-    phone: '',
-    address: '',
-    employment_status: 'employed',
-    monthly_income: '',
-  })
+  const [form, setForm] = useState(emptyForm)
 
   async function loadBorrowers() {
     setLoading(true)
@@ -104,22 +108,61 @@ export default function BorrowersPage() {
       return
     }
 
-    setForm({
-      full_name: '',
-      date_of_birth: '',
-      national_id_number: '',
-      email: '',
-      phone: '',
-      address: '',
-      employment_status: 'employed',
-      monthly_income: '',
-    })
+    setForm(emptyForm)
     setShowModal(false)
     setSaving(false)
     loadBorrowers()
   }
 
-  // I-filter base sa tab (status) at search text
+  function openEditModal(b: Borrower) {
+    setEditingBorrower(b)
+    setForm({
+      full_name: b.full_name,
+      date_of_birth: b.date_of_birth,
+      national_id_number: b.national_id_number,
+      email: b.email || '',
+      phone: b.phone,
+      address: b.address,
+      employment_status: b.employment_status,
+      monthly_income: String(b.monthly_income),
+    })
+    setShowEditModal(true)
+    setErrorMsg('')
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingBorrower) return
+    setSaving(true)
+    setErrorMsg('')
+
+    const { error } = await supabase
+      .from('borrowers')
+      .update({
+        full_name: form.full_name,
+        date_of_birth: form.date_of_birth,
+        national_id_number: form.national_id_number,
+        email: form.email || null,
+        phone: form.phone,
+        address: form.address,
+        employment_status: form.employment_status,
+        monthly_income: Number(form.monthly_income),
+      })
+      .eq('id', editingBorrower.id)
+
+    if (error) {
+      setErrorMsg(error.message)
+      setSaving(false)
+      return
+    }
+
+    setForm(emptyForm)
+    setEditingBorrower(null)
+    setShowEditModal(false)
+    setSaving(false)
+    loadBorrowers()
+  }
+
   const filtered = borrowers.filter((b) => {
     const matchesTab = activeTab === 'all' || b.status === activeTab
     const q = search.trim().toLowerCase()
@@ -191,6 +234,7 @@ export default function BorrowersPage() {
                 <th>Employment</th>
                 <th>Monthly Income</th>
                 <th>Status</th>
+                <th style={{ width: 50 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -215,6 +259,11 @@ export default function BorrowersPage() {
                       {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
                     </span>
                   </td>
+                  <td>
+                    <button className="btn btn-sm btn-ghost" title="Edit borrower" onClick={(e) => { e.stopPropagation(); openEditModal(b) }}>
+                      <i className="bi bi-pencil" style={{ fontSize: 14 }}></i>
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -222,6 +271,7 @@ export default function BorrowersPage() {
         </div>
       )}
 
+      {/* Add Borrower Modal */}
       {showModal && (
         <div className="modal-overlay open">
           <div className="modal">
@@ -243,12 +293,10 @@ export default function BorrowersPage() {
                     <input className="form-input" type="date" name="date_of_birth" value={form.date_of_birth} onChange={handleChange} required />
                   </div>
                 </div>
-
                 <div className="form-group">
                   <label className="form-label">National ID Number</label>
                   <input className="form-input" name="national_id_number" value={form.national_id_number} onChange={handleChange} placeholder="0000-0000000-0" required />
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Phone</label>
@@ -259,12 +307,10 @@ export default function BorrowersPage() {
                     <input className="form-input" type="email" name="email" value={form.email} onChange={handleChange} placeholder="name@email.com" />
                   </div>
                 </div>
-
                 <div className="form-group">
                   <label className="form-label">Address</label>
                   <input className="form-input" name="address" value={form.address} onChange={handleChange} placeholder="Street, City, Province" required />
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Employment Status</label>
@@ -282,12 +328,73 @@ export default function BorrowersPage() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Borrower'}
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Borrower'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Borrower Modal */}
+      {showEditModal && editingBorrower && (
+        <div className="modal-overlay open">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Edit Borrower</h3>
+              <button className="modal-close" onClick={() => { setShowEditModal(false); setEditingBorrower(null) }}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Full Name</label>
+                    <input className="form-input" name="full_name" value={form.full_name} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Date of Birth</label>
+                    <input className="form-input" type="date" name="date_of_birth" value={form.date_of_birth} onChange={handleChange} required />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">National ID Number</label>
+                  <input className="form-input" name="national_id_number" value={form.national_id_number} onChange={handleChange} required />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Phone</label>
+                    <input className="form-input" name="phone" value={form.phone} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Email</label>
+                    <input className="form-input" type="email" name="email" value={form.email} onChange={handleChange} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Address</label>
+                  <input className="form-input" name="address" value={form.address} onChange={handleChange} required />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Employment Status</label>
+                    <select className="form-select" name="employment_status" value={form.employment_status} onChange={handleChange}>
+                      <option value="employed">Employed</option>
+                      <option value="self_employed">Self-employed</option>
+                      <option value="unemployed">Unemployed</option>
+                      <option value="retired">Retired</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Monthly Income</label>
+                    <input className="form-input" type="number" name="monthly_income" value={form.monthly_income} onChange={handleChange} required />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowEditModal(false); setEditingBorrower(null) }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Update Borrower'}</button>
               </div>
             </form>
           </div>
