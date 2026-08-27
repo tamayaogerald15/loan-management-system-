@@ -110,13 +110,7 @@ export default function Home() {
         .reduce((sum, r) => sum + (Number(r.total_due) - Number(r.amount_paid)),
         0)
 
-      const { data: paymentsMTD } = await supabase
-        .from('payments')
-        .select('amount, received_at')
-        .eq('organization_id', ORG_ID)
-        .gte('received_at', startOfMonth)
-
-      const collected = (paymentsMTD || []).reduce((sum, p) => sum + Number(p.amount), 0)
+      const collected = 0
 
       const { data: releasedMTD } = await supabase
         .from('loans')
