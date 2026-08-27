@@ -22,6 +22,11 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<StaffUser[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingUser, setEditingUser] = useState<StaffUser | null>(null)
+  const [editForm, setEditForm] = useState({ full_name: '', email: '', role: 'staff' })
 
   async function loadUsers() {
     setLoading(true)
@@ -41,6 +46,36 @@ export default function SettingsPage() {
     else setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin])
+
+  function openEditModal(u: StaffUser) {
+    setEditingUser(u)
+    setEditForm({ full_name: u.full_name, email: u.email, role: u.role })
+    setShowEditModal(true)
+    setErrorMsg('')
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingUser) return
+    setSaving(true)
+    setErrorMsg('')
+
+    const { error } = await supabase
+      .from('users')
+      .update({ full_name: editForm.full_name, email: editForm.email, role: editForm.role })
+      .eq('id', editingUser.id)
+
+    if (error) {
+      setErrorMsg(error.message)
+      setSaving(false)
+      return
+    }
+
+    setShowEditModal(false)
+    setEditingUser(null)
+    setSaving(false)
+    loadUsers()
+  }
 
   async function toggleActive(u: StaffUser) {
     if (u.id === user?.id) {
@@ -100,7 +135,7 @@ export default function SettingsPage() {
                 <th>Role</th>
                 <th>Status</th>
                 <th>Joined</th>
-                <th></th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -119,7 +154,10 @@ export default function SettingsPage() {
                     </span>
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                  <td>
+                  <td style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-sm btn-ghost" title="Edit user" onClick={() => openEditModal(u)}>
+                      <i className="bi bi-pencil" style={{ fontSize: 14 }}></i>
+                    </button>
                     {u.id !== user?.id && (
                       <button className="btn btn-sm btn-secondary" onClick={() => toggleActive(u)}>
                         {u.is_active ? 'Deactivate' : 'Activate'}
@@ -130,6 +168,42 @@ export default function SettingsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {showEditModal && editingUser && (
+        <div className="modal-overlay open">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Edit User</h3>
+              <button className="modal-close" onClick={() => { setShowEditModal(false); setEditingUser(null) }}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input className="form-input" value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-input" type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Role</label>
+                  <select className="form-select" value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowEditModal(false); setEditingUser(null) }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Update User'}</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>
