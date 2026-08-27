@@ -66,6 +66,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
 
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({
+    principal_amount: '',
+    term_months: '',
+    purpose: '',
+  })
+
   async function loadLoan() {
     setLoading(true)
     const { data, error } = await supabase
@@ -95,6 +102,43 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     loadLoan()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  function openEditModal() {
+    if (!loan) return
+    setEditForm({
+      principal_amount: String(loan.principal_amount),
+      term_months: String(loan.term_months),
+      purpose: loan.purpose || '',
+    })
+    setShowEditModal(true)
+    setErrorMsg('')
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!loan) return
+    setBusy(true)
+    setErrorMsg('')
+
+    const { error } = await supabase
+      .from('loans')
+      .update({
+        principal_amount: Number(editForm.principal_amount),
+        term_months: Number(editForm.term_months),
+        purpose: editForm.purpose || null,
+      })
+      .eq('id', loan.id)
+
+    if (error) {
+      setErrorMsg(error.message)
+      setBusy(false)
+      return
+    }
+
+    setShowEditModal(false)
+    setBusy(false)
+    await loadLoan()
+  }
 
   async function handleSubmitLoan() {
     if (!loan) return
@@ -250,9 +294,14 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {loan.status === 'draft' && (
-            <button className="btn btn-primary" onClick={handleSubmitLoan} disabled={busy}>
-              <i className="bi bi-send"></i> Submit Application
-            </button>
+            <>
+              <button className="btn btn-secondary" onClick={openEditModal} disabled={busy}>
+                <i className="bi bi-pencil"></i> Edit Details
+              </button>
+              <button className="btn btn-primary" onClick={handleSubmitLoan} disabled={busy}>
+                <i className="bi bi-send"></i> Submit Application
+              </button>
+            </>
           )}
           {(loan.status === 'submitted' || loan.status === 'under_review') && (
             <button className="btn btn-secondary" onClick={() => setShowAssessModal(true)} disabled={busy}>
@@ -353,6 +402,41 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
+      {showEditModal && (
+        <div className="modal-overlay open">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Edit Loan Details</h3>
+              <button className="modal-close" onClick={() => setShowEditModal(false)}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Principal Amount</label>
+                    <input className="form-input" type="number" value={editForm.principal_amount} onChange={(e) => setEditForm({ ...editForm, principal_amount: e.target.value })} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Term (months)</label>
+                    <input className="form-input" type="number" value={editForm.term_months} onChange={(e) => setEditForm({ ...editForm, term_months: e.target.value })} required />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Purpose</label>
+                  <textarea className="form-textarea" rows={3} value={editForm.purpose} onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })} placeholder="Working capital, tuition, etc."></textarea>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving...' : 'Save Changes'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showAssessModal && (
         <div className="modal-overlay open">
           <div className="modal">
@@ -388,12 +472,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAssessModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? 'Saving...' : 'Save Assessment'}
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAssessModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving...' : 'Save Assessment'}</button>
               </div>
             </form>
           </div>
@@ -417,12 +497,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowRejectModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-danger" disabled={busy}>
-                  {busy ? 'Saving...' : 'Reject Application'}
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowRejectModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-danger" disabled={busy}>{busy ? 'Saving...' : 'Reject Application'}</button>
               </div>
             </form>
           </div>
