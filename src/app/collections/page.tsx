@@ -133,7 +133,13 @@ export default function CollectionsPage() {
       </div>
 
       {loading ? (
-        <p>Loading...</p>
+        <div className="table-wrap">
+          <div style={{ padding: 24 }}>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="skeleton skeleton-table-row" style={{ marginBottom: 8 }}></div>
+            ))}
+          </div>
+        </div>
       ) : (
         <>
           {/* ---------- Due Today ---------- */}
