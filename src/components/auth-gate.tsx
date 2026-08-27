@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 
@@ -11,6 +11,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth()
   const pathname = usePathname()
   const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !user && !isPublicRoute) {
@@ -18,25 +19,33 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, isPublicRoute])
 
-  // Login/Signup pages: walang sidebar/header, buo ang page
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [pathname])
+
   if (isPublicRoute) {
     return <>{children}</>
   }
 
-  // Habang chine-check pa kung may naka-login
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p>Loading...</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--gray-50)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, var(--blue-600), var(--violet-600))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', animation: 'pulse 2s ease infinite' }}>
+            <i className="bi bi-cash-coin" style={{ color: '#fff', fontSize: 18 }}></i>
+          </div>
+          <p style={{ color: 'var(--gray-500)', fontSize: 13, fontWeight: 500 }}>Loading...</p>
+        </div>
       </div>
     )
   }
 
-  // Walang naka-login, papunta na sa /login (habang naghihintay ng redirect)
   if (!user) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p>Redirecting to login...</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--gray-50)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Redirecting to login...</p>
+        </div>
       </div>
     )
   }
@@ -45,17 +54,38 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     return name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
   }
 
+  const navItems = [
+    { href: '/', icon: 'bi-grid-1x2', label: 'Dashboard', match: '/' },
+    { href: '/loans', icon: 'bi-file-earmark-text', label: 'Loans', match: '/loans' },
+    { href: '/borrowers', icon: 'bi-people', label: 'Borrowers', match: '/borrowers' },
+    { href: '/collections', icon: 'bi-cash-stack', label: 'Collections', match: '/collections' },
+  ]
+
+  const reportItems = [
+    { href: '/reports', icon: 'bi-bar-chart', label: 'Portfolio Report', match: '/reports' },
+  ]
+
+  const adminItems = user.role === 'admin' ? [
+    { href: '/products', icon: 'bi-boxes', label: 'Loan Products', match: '/products' },
+    { href: '/settings', icon: 'bi-gear', label: 'Settings', match: '/settings' },
+  ] : []
+
   return (
     <>
       <div id="header">
-        <div className="org-pill">
-          <div className="sq">
-            <i className="bi bi-bank2"></i>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            <i className={`bi ${sidebarOpen ? 'bi-x-lg' : 'bi-list'}`}></i>
+          </button>
+          <div className="org-pill">
+            <div className="sq">
+              <i className="bi bi-bank2"></i>
+            </div>
+            <span>Loan Management System</span>
           </div>
-          <span>Loan Management System</span>
         </div>
         <div className="header-right">
-          <span style={{ fontSize: 13, color: '#cbd5e1' }}>
+          <span className="user-name-text" style={{ fontSize: 13, color: '#cbd5e1' }}>
             {user.full_name} <span className="badge b-blue" style={{ marginLeft: 6 }}>{user.role}</span>
           </span>
           <div className="header-icon" onClick={logout} style={{ cursor: 'pointer' }} title="Logout">
@@ -65,7 +95,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <div id="sidebar">
+      <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)}></div>
+
+      <div id="sidebar" className={sidebarOpen ? 'open' : ''}>
         <div className="module-brand">
           <div className="sq">
             <i className="bi bi-cash-coin"></i>
@@ -73,47 +105,45 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           <span>Loan Management</span>
         </div>
 
-        <Link href="/" className={`nav-item ${pathname === '/' ? 'active' : ''}`}>
-          <span>
-            <i className="bi bi-grid-1x2"></i>Dashboard
-          </span>
-        </Link>
-        <Link href="/loans" className={`nav-item ${pathname.startsWith('/loans') ? 'active' : ''}`}>
-          <span>
-            <i className="bi bi-file-earmark-text"></i>Loans
-          </span>
-        </Link>
-        <Link href="/borrowers" className={`nav-item ${pathname.startsWith('/borrowers') ? 'active' : ''}`}>
-          <span>
-            <i className="bi bi-people"></i>Borrowers
-          </span>
-        </Link>
-        <Link href="/collections" className={`nav-item ${pathname.startsWith('/collections') ? 'active' : ''}`}>
-          <span>
-            <i className="bi bi-cash-stack"></i>Collections
-          </span>
-        </Link>
+        {navItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`nav-item ${pathname === item.match || (item.match !== '/' && pathname.startsWith(item.match)) ? 'active' : ''}`}
+          >
+            <span>
+              <i className={`bi ${item.icon}`}></i>{item.label}
+            </span>
+          </Link>
+        ))}
 
         <div className="nav-label">Reports</div>
-        <Link href="/reports" className={`nav-item ${pathname.startsWith('/reports') ? 'active' : ''}`}>
-          <span>
-            <i className="bi bi-bar-chart"></i>Portfolio Report
-          </span>
-        </Link>
+        {reportItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`nav-item ${pathname.startsWith(item.match) ? 'active' : ''}`}
+          >
+            <span>
+              <i className={`bi ${item.icon}`}></i>{item.label}
+            </span>
+          </Link>
+        ))}
 
-        {user.role === 'admin' && (
+        {adminItems.length > 0 && (
           <>
             <div className="nav-label">Admin</div>
-            <Link href="/products" className={`nav-item ${pathname.startsWith('/products') ? 'active' : ''}`}>
-              <span>
-                <i className="bi bi-boxes"></i>Loan Products
-              </span>
-            </Link>
-            <Link href="/settings" className={`nav-item ${pathname.startsWith('/settings') ? 'active' : ''}`}>
-              <span>
-                <i className="bi bi-gear"></i>Settings
-              </span>
-            </Link>
+            {adminItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-item ${pathname.startsWith(item.match) ? 'active' : ''}`}
+              >
+                <span>
+                  <i className={`bi ${item.icon}`}></i>{item.label}
+                </span>
+              </Link>
+            ))}
           </>
         )}
 
