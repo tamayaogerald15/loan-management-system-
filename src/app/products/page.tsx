@@ -23,6 +23,17 @@ function peso(n: number) {
   return '₱' + Number(n).toLocaleString('en-PH')
 }
 
+const emptyForm = {
+  name: '',
+  interest_rate: '',
+  interest_type: 'declining_balance',
+  min_amount: '',
+  max_amount: '',
+  min_term_months: '',
+  max_term_months: '',
+  penalty_rate: '',
+}
+
 export default function ProductsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
@@ -31,18 +42,11 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<LoanProduct | null>(null)
 
-  const [form, setForm] = useState({
-    name: '',
-    interest_rate: '',
-    interest_type: 'declining_balance',
-    min_amount: '',
-    max_amount: '',
-    min_term_months: '',
-    max_term_months: '',
-    penalty_rate: '',
-  })
+  const [form, setForm] = useState(emptyForm)
 
   async function loadProducts() {
     setLoading(true)
@@ -89,17 +93,57 @@ export default function ProductsPage() {
       return
     }
 
-    setForm({
-      name: '',
-      interest_rate: '',
-      interest_type: 'declining_balance',
-      min_amount: '',
-      max_amount: '',
-      min_term_months: '',
-      max_term_months: '',
-      penalty_rate: '',
-    })
+    setForm(emptyForm)
     setShowModal(false)
+    setSaving(false)
+    loadProducts()
+  }
+
+  function openEditModal(p: LoanProduct) {
+    setEditingProduct(p)
+    setForm({
+      name: p.name,
+      interest_rate: String(p.interest_rate),
+      interest_type: p.interest_type,
+      min_amount: String(p.min_amount),
+      max_amount: String(p.max_amount),
+      min_term_months: String(p.min_term_months),
+      max_term_months: String(p.max_term_months),
+      penalty_rate: String(p.penalty_rate),
+    })
+    setShowEditModal(true)
+    setErrorMsg('')
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingProduct) return
+    setSaving(true)
+    setErrorMsg('')
+
+    const { error } = await supabase
+      .from('loan_products')
+      .update({
+        name: form.name,
+        interest_rate: Number(form.interest_rate),
+        interest_type: form.interest_type,
+        min_amount: Number(form.min_amount),
+        max_amount: Number(form.max_amount),
+        min_term_months: Number(form.min_term_months),
+        max_term_months: Number(form.max_term_months),
+        penalty_rate: Number(form.penalty_rate || 0),
+      })
+      .eq('id', editingProduct.id)
+
+    if (error) {
+      setErrorMsg(error.message)
+      setSaving(false)
+      return
+    }
+
+    setForm(emptyForm)
+    setEditingProduct(null)
+    setShowEditModal(false)
     setSaving(false)
     loadProducts()
   }
@@ -162,6 +206,7 @@ export default function ProductsPage() {
                 <th>Amount Range</th>
                 <th>Term</th>
                 <th>Status</th>
+                <th style={{ width: 50 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -180,6 +225,11 @@ export default function ProductsPage() {
                     <span className={`badge ${p.is_active ? 'b-emerald' : 'b-gray'}`}>
                       {p.is_active ? 'Active' : 'Inactive'}
                     </span>
+                  </td>
+                  <td>
+                    <button className="btn btn-sm btn-ghost" title="Edit product" onClick={() => openEditModal(p)}>
+                      <i className="bi bi-pencil" style={{ fontSize: 14 }}></i>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -203,7 +253,6 @@ export default function ProductsPage() {
                   <label className="form-label">Product Name</label>
                   <input className="form-input" name="name" value={form.name} onChange={handleChange} placeholder="e.g. Salary Loan" required />
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Interest Rate (% / month)</label>
@@ -217,7 +266,6 @@ export default function ProductsPage() {
                     </select>
                   </div>
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Min Amount</label>
@@ -228,7 +276,6 @@ export default function ProductsPage() {
                     <input className="form-input" type="number" name="max_amount" value={form.max_amount} onChange={handleChange} placeholder="₱ 0.00" required />
                   </div>
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Min Term (months)</label>
@@ -239,19 +286,76 @@ export default function ProductsPage() {
                     <input className="form-input" type="number" name="max_term_months" value={form.max_term_months} onChange={handleChange} placeholder="24" required />
                   </div>
                 </div>
-
                 <div className="form-group">
                   <label className="form-label">Penalty Rate (% per overdue installment)</label>
                   <input className="form-input" type="number" step="0.01" name="penalty_rate" value={form.penalty_rate} onChange={handleChange} placeholder="1.0" />
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Product'}
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save Product'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingProduct && (
+        <div className="modal-overlay open">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Edit Loan Product</h3>
+              <button className="modal-close" onClick={() => { setShowEditModal(false); setEditingProduct(null) }}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Product Name</label>
+                  <input className="form-input" name="name" value={form.name} onChange={handleChange} required />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Interest Rate (% / month)</label>
+                    <input className="form-input" type="number" step="0.01" name="interest_rate" value={form.interest_rate} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Interest Type</label>
+                    <select className="form-select" name="interest_type" value={form.interest_type} onChange={handleChange}>
+                      <option value="declining_balance">Declining Balance</option>
+                      <option value="flat">Flat</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Min Amount</label>
+                    <input className="form-input" type="number" name="min_amount" value={form.min_amount} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Max Amount</label>
+                    <input className="form-input" type="number" name="max_amount" value={form.max_amount} onChange={handleChange} required />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Min Term (months)</label>
+                    <input className="form-input" type="number" name="min_term_months" value={form.min_term_months} onChange={handleChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Max Term (months)</label>
+                    <input className="form-input" type="number" name="max_term_months" value={form.max_term_months} onChange={handleChange} required />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Penalty Rate (% per overdue installment)</label>
+                  <input className="form-input" type="number" step="0.01" name="penalty_rate" value={form.penalty_rate} onChange={handleChange} />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowEditModal(false); setEditingProduct(null) }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Update Product'}</button>
               </div>
             </form>
           </div>
