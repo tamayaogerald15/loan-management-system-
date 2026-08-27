@@ -14,6 +14,8 @@ type Loan = {
   purpose: string | null
   borrowers: { full_name: string } | null
   loan_products: { name: string } | null
+  total_due?: number
+  total_paid?: number
 }
 
 type Borrower = { id: string; full_name: string }
@@ -45,6 +47,8 @@ export default function LoansPage() {
   const [errorMsg, setErrorMsg] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [paymentMap, setPaymentMap] = useState<Record<string, { total_due: number; total_paid: number }>>({})
 
   const [form, setForm] = useState({
     borrower_id: '',
@@ -78,6 +82,20 @@ export default function LoansPage() {
     if (loanError) setErrorMsg(loanError.message)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     else setLoans((loanData as any) || [])
+
+    // Fetch payment schedules to calculate payment status per loan
+    const { data: scheduleData } = await supabase
+      .from('payment_schedules')
+      .select('loan_id, total_due, amount_paid')
+      .eq('organization_id', ORG_ID)
+
+    const pMap: Record<string, { total_due: number; total_paid: number }> = {}
+    ;(scheduleData || []).forEach((s) => {
+      if (!pMap[s.loan_id]) pMap[s.loan_id] = { total_due: 0, total_paid: 0 }
+      pMap[s.loan_id].total_due += Number(s.total_due)
+      pMap[s.loan_id].total_paid += Number(s.amount_paid)
+    })
+    setPaymentMap(pMap)
 
     setBorrowers(borrowerData || [])
     setProducts(productData || [])
@@ -192,23 +210,49 @@ export default function LoansPage() {
                 <th>Product</th>
                 <th>Principal</th>
                 <th>Term</th>
+                <th>Payment</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {loans.map((l) => (
-                <tr key={l.id} onClick={() => (window.location.href = `/loans/${l.id}`)}>
-                  <td className="cell-strong">{l.borrowers?.full_name || '—'}</td>
-                  <td>{l.loan_products?.name || '—'}</td>
-                  <td>{peso(l.principal_amount)}</td>
-                  <td>{l.term_months} mo</td>
-                  <td>
-                    <span className={`badge ${statusMeta[l.status]?.cls || 'b-gray'}`}>
-                      {statusMeta[l.status]?.label || l.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {loans.map((l) => {
+                const pmt = paymentMap[l.id]
+                const paid = pmt ? pmt.total_paid : 0
+                const due = pmt ? pmt.total_due : 0
+                const pct = due > 0 ? Math.round((paid / due) * 100) : 0
+                const isFullyPaid = l.status === 'fully_paid' || (due > 0 && paid >= due)
+                const hasSchedules = !!pmt
+
+                return (
+                  <tr key={l.id} onClick={() => (window.location.href = `/loans/${l.id}`)}>
+                    <td className="cell-strong">{l.borrowers?.full_name || '—'}</td>
+                    <td>{l.loan_products?.name || '—'}</td>
+                    <td>{peso(l.principal_amount)}</td>
+                    <td>{l.term_months} mo</td>
+                    <td>
+                      {!hasSchedules ? (
+                        <span className="badge b-gray">No schedule</span>
+                      ) : isFullyPaid ? (
+                        <span className="badge b-emerald">Fully Paid</span>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ flex: 1, height: 6, background: 'var(--gray-100)', borderRadius: 999, minWidth: 60 }}>
+                            <div style={{ height: 6, width: `${pct}%`, background: pct > 0 ? 'var(--amber-600)' : 'var(--rose-600)', borderRadius: 999, transition: 'width 0.4s ease' }}></div>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: pct > 0 ? 'var(--amber-700)' : 'var(--rose-600)', whiteSpace: 'nowrap' }}>
+                            {pct}%
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`badge ${statusMeta[l.status]?.cls || 'b-gray'}`}>
+                        {statusMeta[l.status]?.label || l.status}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
