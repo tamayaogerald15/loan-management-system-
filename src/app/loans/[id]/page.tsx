@@ -96,14 +96,11 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  // ---------- Actions ----------
-
   async function handleSubmitLoan() {
     if (!loan) return
     setBusy(true)
     setErrorMsg('')
 
-    // Guard: borrower must be active
     if (loan.borrowers?.status !== 'active') {
       setErrorMsg('Ang borrower ay hindi active. Hindi maaaring i-submit ang loan.')
       setBusy(false)
@@ -138,7 +135,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       return
     }
 
-    // I-move ang loan papuntang under_review (kung galing pa lang sa submitted)
     if (loan.status === 'submitted') {
       await supabase.from('loans').update({ status: 'under_review' }).eq('id', loan.id)
     }
@@ -158,7 +154,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     setBusy(true)
     setErrorMsg('')
 
-    // Guard: dapat may assessment na recommendation = approve
     const hasApproval = assessments.some((a) => a.recommendation === 'approve')
     if (!hasApproval) {
       setErrorMsg('Kailangan muna ng credit assessment na may recommendation na "Approve" bago ma-approve ang loan.')
@@ -212,9 +207,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     setBusy(true)
     setErrorMsg('')
 
-    // Tinatawag natin dito ang SQL function na gagawa ng buong
-    // payment schedule AT mag-a-active sa loan, bilang isang
-    // transaction (rollback lahat kung may error).
     const { error } = await supabase.rpc('release_loan', { p_loan_id: loan.id })
 
     if (error) setErrorMsg(error.message)
@@ -222,14 +214,24 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     setBusy(false)
   }
 
-  // Helper: kunin lang ang unang user sa users table (temporary,
-  // hanggang wala pa tayong tunay na login/auth)
   async function getFirstUserId() {
     const { data } = await supabase.from('users').select('id').limit(1).single()
     return data?.id
   }
 
-  if (loading) return <p>Loading...</p>
+  if (loading) {
+    return (
+      <>
+        <div className="breadcrumb"><Link href="/loans">Loans</Link> <i className="bi bi-chevron-right" style={{ fontSize: 10 }}></i> ...</div>
+        <div className="page-header"><div className="page-header-left"><div className="skeleton skeleton-line h-20 w-60" style={{ height: 24, marginBottom: 8 }}></div><div className="skeleton skeleton-line w-40" style={{ height: 14 }}></div></div></div>
+        <div className="detail-grid">
+          <div className="panel"><div className="skeleton skeleton-card" style={{ height: 280 }}></div></div>
+          <div className="panel"><div className="skeleton skeleton-card" style={{ height: 120 }}></div></div>
+        </div>
+      </>
+    )
+  }
+
   if (!loan) return <p>Loan not found.</p>
 
   return (
@@ -246,24 +248,24 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <div className="page-subtitle">{loan.loan_products?.name} · {peso(loan.principal_amount)} · {loan.term_months} months</div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {loan.status === 'draft' && (
             <button className="btn btn-primary" onClick={handleSubmitLoan} disabled={busy}>
-              Submit Application
+              <i className="bi bi-send"></i> Submit Application
             </button>
           )}
           {(loan.status === 'submitted' || loan.status === 'under_review') && (
             <button className="btn btn-secondary" onClick={() => setShowAssessModal(true)} disabled={busy}>
-              Record Credit Assessment
+              <i className="bi bi-clipboard-check"></i> Record Credit Assessment
             </button>
           )}
           {loan.status === 'under_review' && isAdmin && (
             <>
               <button className="btn btn-danger" onClick={() => setShowRejectModal(true)} disabled={busy}>
-                Reject
+                <i className="bi bi-x-lg"></i> Reject
               </button>
               <button className="btn btn-success" onClick={handleApprove} disabled={busy}>
-                Approve
+                <i className="bi bi-check-lg"></i> Approve
               </button>
             </>
           )}
@@ -272,7 +274,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           )}
           {loan.status === 'approved' && isAdmin && (
             <button className="btn btn-primary" onClick={handleRelease} disabled={busy}>
-              {busy ? 'Releasing...' : 'Release Loan'}
+              {busy ? 'Releasing...' : <><i className="bi bi-cash"></i> Release Loan</>}
             </button>
           )}
           {loan.status === 'approved' && !isAdmin && (
@@ -282,9 +284,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {errorMsg && (
-        <p style={{ color: 'var(--rose-600)', background: 'var(--rose-50)', padding: '10px 14px', borderRadius: 8, marginBottom: 16 }}>
+        <div style={{ color: 'var(--rose-700)', background: 'var(--rose-50)', border: '1px solid var(--rose-200)', padding: '10px 14px', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className="bi bi-exclamation-circle" style={{ fontSize: 15 }}></i>
           {errorMsg}
-        </p>
+        </div>
       )}
 
       <div className="detail-grid">
@@ -298,23 +301,26 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <div className="info-row"><span className="k">Interest Rate</span><span className="v">{loan.interest_rate_snapshot ?? loan.loan_products?.interest_rate}%/mo</span></div>
             <div className="info-row"><span className="k">Purpose</span><span className="v">{loan.purpose || '—'}</span></div>
             {loan.status === 'rejected' && (
-              <div className="info-row"><span className="k">Rejection Reason</span><span className="v">{loan.rejection_reason}</span></div>
+              <div className="info-row"><span className="k">Rejection Reason</span><span className="v" style={{ color: 'var(--rose-600)' }}>{loan.rejection_reason}</span></div>
             )}
           </div>
 
           <div className="panel">
             <div className="section-title">Credit Assessments</div>
             {assessments.length === 0 ? (
-              <p style={{ color: 'var(--gray-500)', fontSize: 13 }}>Wala pang assessment.</p>
+              <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+                <i className="bi bi-clipboard-data" style={{ fontSize: 28, color: 'var(--gray-300)' }}></i>
+                <p style={{ color: 'var(--gray-500)', fontSize: 13, marginTop: 8 }}>No assessment recorded yet.</p>
+              </div>
             ) : (
               <div className="timeline">
                 {assessments.map((a) => (
                   <div className="tl-item" key={a.id}>
-                    <div className="tl-dot"></div>
+                    <div className="tl-dot" style={{ background: a.recommendation === 'approve' ? 'var(--emerald-600)' : a.recommendation === 'reject' ? 'var(--rose-600)' : 'var(--amber-600)' }}></div>
                     <div>
                       <div className="tl-title">
                         {a.recommendation === 'approve' ? 'Recommended: Approve' : a.recommendation === 'reject' ? 'Recommended: Reject' : 'Needs more info'}
-                        {a.credit_score && ` · Score: ${a.credit_score}`}
+                        {a.credit_score && <span style={{ color: 'var(--gray-500)', fontWeight: 500 }}> · Score: {a.credit_score}</span>}
                       </div>
                       <div className="tl-sub">{a.notes}</div>
                     </div>
@@ -325,22 +331,28 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        <div className="panel">
+        <div className="panel" style={{ height: 'fit-content' }}>
           <div className="section-title">Status</div>
-          <span className={`badge ${statusMeta[loan.status]?.cls}`} style={{ fontSize: 14, padding: '6px 14px' }}>
-            {statusMeta[loan.status]?.label}
-          </span>
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <span className={`badge ${statusMeta[loan.status]?.cls}`} style={{ fontSize: 14, padding: '8px 18px' }}>
+              {statusMeta[loan.status]?.label}
+            </span>
+          </div>
           {loan.status === 'active' && (
-            <p style={{ marginTop: 12, fontSize: 13, color: 'var(--gray-500)' }}>
-              <Link href={`/loans/${loan.id}/schedule`} style={{ color: 'var(--blue-600)', fontWeight: 600 }}>
-                View Payment Schedule →
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <Link href={`/loans/${loan.id}/schedule`} className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+                <i className="bi bi-calendar-check"></i> View Payment Schedule
               </Link>
+            </div>
+          )}
+          {loan.status === 'draft' && (
+            <p style={{ marginTop: 12, fontSize: 12.5, color: 'var(--gray-400)', textAlign: 'center' }}>
+              Submit this application to begin the review process.
             </p>
           )}
         </div>
       </div>
 
-      {/* ---------- Credit Assessment Modal ---------- */}
       {showAssessModal && (
         <div className="modal-overlay open">
           <div className="modal">
@@ -355,11 +367,11 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Credit Score (optional)</label>
-                    <input className="form-input" type="number" value={assessForm.credit_score} onChange={(e) => setAssessForm({ ...assessForm, credit_score: e.target.value })} />
+                    <input className="form-input" type="number" value={assessForm.credit_score} onChange={(e) => setAssessForm({ ...assessForm, credit_score: e.target.value })} placeholder="e.g. 750" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Debt-to-Income Ratio (optional)</label>
-                    <input className="form-input" type="number" step="0.01" value={assessForm.debt_to_income_ratio} onChange={(e) => setAssessForm({ ...assessForm, debt_to_income_ratio: e.target.value })} />
+                    <input className="form-input" type="number" step="0.01" value={assessForm.debt_to_income_ratio} onChange={(e) => setAssessForm({ ...assessForm, debt_to_income_ratio: e.target.value })} placeholder="e.g. 0.35" />
                   </div>
                 </div>
                 <div className="form-group">
@@ -372,7 +384,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
                 <div className="form-group">
                   <label className="form-label">Notes</label>
-                  <textarea className="form-textarea" rows={4} required value={assessForm.notes} onChange={(e) => setAssessForm({ ...assessForm, notes: e.target.value })}></textarea>
+                  <textarea className="form-textarea" rows={4} required value={assessForm.notes} onChange={(e) => setAssessForm({ ...assessForm, notes: e.target.value })} placeholder="Describe the assessment findings..."></textarea>
                 </div>
               </div>
               <div className="modal-footer">
@@ -388,7 +400,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* ---------- Reject Modal ---------- */}
       {showRejectModal && (
         <div className="modal-overlay open">
           <div className="modal">
@@ -402,7 +413,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label">Rejection Reason</label>
-                  <textarea className="form-textarea" rows={3} required value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}></textarea>
+                  <textarea className="form-textarea" rows={3} required value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Explain why this application is being rejected..."></textarea>
                 </div>
               </div>
               <div className="modal-footer">
