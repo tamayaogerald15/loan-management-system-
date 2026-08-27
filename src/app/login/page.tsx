@@ -39,50 +39,54 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--gray-100)' }}>
-      <div className="panel" style={{ width: 400, maxWidth: '92vw' }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div className="sq" style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--blue-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto' }}>
-            <i className="bi bi-cash-coin" style={{ color: '#fff', fontSize: 20 }}></i>
-          </div>
-          <div className="page-title" style={{ justifyContent: 'center' }}>Loan Management System</div>
-          <div className="page-subtitle">Sign in to your account</div>
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <i className="bi bi-cash-coin" style={{ color: '#fff', fontSize: 24 }}></i>
         </div>
+        <div className="auth-title">Welcome back</div>
+        <div className="auth-subtitle">Sign in to your Loan Management account</div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Email</label>
-            <input className="form-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+            <label className="form-label">Email address</label>
+            <input className="form-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus placeholder="you@company.com" />
           </div>
           <div className="form-group">
             <label className="form-label">Password</label>
-            <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Enter your password" />
           </div>
           <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="bi bi-arrow-repeat" style={{ animation: 'spin 1s linear infinite' }}></i>
+                Signing in...
+              </span>
+            ) : 'Sign In'}
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--gray-500)', marginTop: 18 }}>
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" style={{ color: 'var(--blue-600)', fontWeight: 600 }}>
-            Sign up
-          </Link>
-        </p>
+        <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--gray-100)' }}>
+          <p style={{ fontSize: 13, color: 'var(--gray-500)' }}>
+            Don&apos;t have an account?{' '}
+            <Link href="/signup" style={{ color: 'var(--blue-600)', fontWeight: 600 }}>
+              Create account
+            </Link>
+          </p>
+        </div>
       </div>
 
-      {/* ---------- Error Popup Modal ---------- */}
       {errorMsg && (
         <div className="modal-overlay open">
-          <div className="modal" style={{ width: 380 }}>
-            <div className="modal-body" style={{ textAlign: 'center', padding: '28px 20px' }}>
-              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px auto' }}>
-                <i className="bi bi-x-circle" style={{ color: 'var(--rose-600)', fontSize: 22 }}></i>
+          <div className="modal" style={{ width: 400 }}>
+            <div className="modal-body" style={{ textAlign: 'center', padding: '32px 24px' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', animation: 'scaleIn 0.2s ease' }}>
+                <i className="bi bi-x-circle" style={{ color: 'var(--rose-600)', fontSize: 26 }}></i>
               </div>
-              <h3 style={{ margin: '0 0 6px 0' }}>Login Failed</h3>
-              <p style={{ color: 'var(--gray-500)', fontSize: 13.5, margin: 0 }}>{errorMsg}</p>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: 17 }}>Login Failed</h3>
+              <p style={{ color: 'var(--gray-500)', fontSize: 13.5, margin: 0, lineHeight: 1.5 }}>{errorMsg}</p>
             </div>
-            <div className="modal-footer" style={{ justifyContent: 'center' }}>
+            <div className="modal-footer" style={{ justifyContent: 'center', paddingTop: 0 }}>
               <button className="btn btn-primary" onClick={() => setErrorMsg('')}>
                 Try Again
               </button>
@@ -90,6 +94,13 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }
