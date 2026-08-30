@@ -6,7 +6,7 @@ type AuthUser = {
   id: string
   full_name: string
   email: string
-  role: 'admin' | 'staff'
+  role: 'admin' | 'staff' | 'lender' | 'superadmin'
 }
 
 type AuthContextType = {
@@ -40,11 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
-    localStorage.removeItem('lms_user')
-    setUser(null)
-    window.location.href = '/login'
-  }
-
+  localStorage.removeItem('lms_user')
+  window.location.href = '/'
+}
   return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
 }
 

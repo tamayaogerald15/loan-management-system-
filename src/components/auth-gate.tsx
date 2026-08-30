@@ -6,24 +6,63 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 
 const PUBLIC_ROUTES = ['/login', '/signup']
+const LANDING_ROUTE = '/'
+
+const ROLE_HOME: Record<string, string> = {
+  admin: '/dashboard',
+  staff: '/dashboard',
+  lender: '/lenders',
+  superadmin: '/superadmin',
+}
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth()
   const pathname = usePathname()
   const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
+  const isLandingRoute = pathname === LANDING_ROUTE
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  useEffect(() => {
-    if (!loading && !user && !isPublicRoute) {
+    useEffect(() => {
+    if (loading) return
+
+    // No user, trying to access a protected page → send to login
+    if (!user && !isPublicRoute && !isLandingRoute) {
       window.location.href = '/login'
+      return
     }
-  }, [loading, user, isPublicRoute])
+
+    // Logged-in user sitting on the landing page → send to their portal
+    if (user && isLandingRoute) {
+      window.location.href = ROLE_HOME[user.role] || '/dashboard'
+      return
+    }
+
+       // Logged-in user trying to access a route that isn't theirs → send them home
+    if (user && !isPublicRoute && !isLandingRoute) {
+      // Superadmin can access everything
+      if (user.role === 'superadmin') {
+        // no restriction
+      } else {
+        const isLenderRoute = pathname.startsWith('/lenders')
+        const isSuperadminRoute = pathname.startsWith('/superadmin')
+        const isStaffRoute = !isLenderRoute && !isSuperadminRoute
+
+        const allowed =
+          (user.role === 'lender' && isLenderRoute) ||
+          ((user.role === 'admin' || user.role === 'staff') && isStaffRoute)
+
+        if (!allowed) {
+          window.location.href = ROLE_HOME[user.role] || '/dashboard'
+        }
+      }
+    }
+  }, [loading, user, isPublicRoute, isLandingRoute, pathname])
 
   useEffect(() => {
     setSidebarOpen(false)
   }, [pathname])
 
-  if (isPublicRoute) {
+   if (isPublicRoute || (isLandingRoute && !user)) {
     return <>{children}</>
   }
 
@@ -54,25 +93,42 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     return name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
   }
 
-  const navItems = [
-    { href: '/', icon: 'bi-grid-1x2', label: 'Dashboard', match: '/' },
-    { href: '/loans', icon: 'bi-file-earmark-text', label: 'Loans', match: '/loans' },
-    { href: '/borrowers', icon: 'bi-people', label: 'Borrowers', match: '/borrowers' },
-    { href: '/collections', icon: 'bi-cash-stack', label: 'Collections', match: '/collections' },
-  ]
+    const isLenderRole = user.role === 'lender'
+  const isSuperadminRole = user.role === 'superadmin'
 
-  const reportItems = [
-    { href: '/reports', icon: 'bi-bar-chart', label: 'Portfolio Report', match: '/reports' },
-  ]
+    const navItems = isLenderRole
+    ? [
+        { href: '/lenders', icon: 'bi-grid-1x2', label: 'Portfolio Overview', match: '/lenders' },
+      ]
+    : isSuperadminRole
+    ? [
+        { href: '/superadmin', icon: 'bi-grid-1x2', label: 'System Overview', match: '/superadmin' },
+        { href: '/dashboard', icon: 'bi-speedometer2', label: 'Dashboard', match: '/dashboard' },
+        { href: '/loans', icon: 'bi-file-earmark-text', label: 'Loans', match: '/loans' },
+        { href: '/borrowers', icon: 'bi-people', label: 'Borrowers', match: '/borrowers' },
+        { href: '/collections', icon: 'bi-cash-stack', label: 'Collections', match: '/collections' },
+      ]
+    : [
+        { href: '/dashboard', icon: 'bi-grid-1x2', label: 'Dashboard', match: '/dashboard' },
+        { href: '/loans', icon: 'bi-file-earmark-text', label: 'Loans', match: '/loans' },
+        { href: '/borrowers', icon: 'bi-people', label: 'Borrowers', match: '/borrowers' },
+        { href: '/collections', icon: 'bi-cash-stack', label: 'Collections', match: '/collections' },
+      ]
 
-  const adminItems = user.role === 'admin' ? [
+  const reportItems = isLenderRole
+    ? []
+    : [
+        { href: '/reports', icon: 'bi-bar-chart', label: 'Portfolio Report', match: '/reports' },
+      ]
+
+  const adminItems = (user.role === 'admin' || user.role === 'superadmin') ? [
     { href: '/products', icon: 'bi-boxes', label: 'Loan Products', match: '/products' },
     { href: '/settings', icon: 'bi-gear', label: 'Settings', match: '/settings' },
   ] : []
 
   return (
     <>
-      <div id="header">
+            <div id="header" className={isSuperadminRole ? 'theme-superadmin' : ''}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
             <i className={`bi ${sidebarOpen ? 'bi-x-lg' : 'bi-list'}`}></i>
@@ -97,7 +153,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
       <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)}></div>
 
-      <div id="sidebar" className={sidebarOpen ? 'open' : ''}>
+            <div id="sidebar" className={`${sidebarOpen ? 'open' : ''} ${isSuperadminRole ? 'theme-superadmin' : ''}`}>
         <div className="module-brand">
           <div className="sq">
             <i className="bi bi-cash-coin"></i>

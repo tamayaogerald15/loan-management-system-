@@ -318,3 +318,310 @@ table.data-table tbody tr:nth-child(even):hover{background:linear-gradient(90deg
   #main{margin-left:0!important;margin-top:0!important;padding:0!important;}
   .panel,.kpi-card,.table-wrap{box-shadow:none;border:1px solid #ddd;}
 }
+
+/* Landing Page */
+.landing-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-image: linear-gradient(rgba(10, 15, 30, 0.55), rgba(10, 15, 30, 0.55)), url('/hero-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+.landing-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 48px;
+  background: var(--gray-900);
+}
+
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+
+.landing-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--blue-600), var(--violet-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+}
+
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+}
+
+.btn-ghost:hover {
+  background: var(--gray-50);
+}
+
+.landing-nav .btn-ghost {
+  color: #fff;
+  border-color: rgba(255,255,255,0.2);
+}
+
+.landing-nav .btn-ghost:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.landing-hero {
+  text-align: center;
+  padding: 140px 24px 100px;
+  max-width: 100%;
+  margin: 0;
+  position: relative;
+}
+
+.landing-hero-title,
+.landing-hero-subtitle {
+  max-width: 720px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.landing-hero-actions {
+  display: flex;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.landing-hero-title {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  margin: 0 auto 20px auto;
+}
+
+.landing-hero-subtitle {
+  font-size: 16px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.6;
+  margin: 0 auto 32px auto;
+}
+
+.landing-hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 24px 96px;
+  width: 100%;
+}
+
+.landing-feature-card {
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 14px;
+  padding: 28px 24px;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.landing-feature-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+.landing-feature-card h3 {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0 0 8px 0;
+}
+
+.landing-feature-card p {
+  font-size: 13.5px;
+  color: var(--gray-500);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.landing-footer {
+  text-align: center;
+  padding: 24px;
+  background: var(--gray-900);
+}
+
+.landing-footer p {
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.5);
+  margin: 0;
+}
+@media (max-width: 768px) {
+  .landing-nav {
+    padding: 16px 20px;
+  }
+
+  .landing-hero {
+    padding: 64px 20px 48px;
+  }
+
+  .landing-hero-title {
+    font-size: 30px;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+    padding: 0 20px 64px;
+  }
+}
+
+/* Landing Page — Loan Products Section */
+.landing-products {
+  max-width: 100%;
+  margin: 0;
+  padding: 60px 24px 80px;
+  width: 100%;
+}
+
+.landing-products > * {
+  max-width: 1080px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.landing-products-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.landing-products-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 8px 0;
+}
+
+.landing-products-header p {
+  font-size: 14.5px;
+  color: rgba(255,255,255,0.85);
+  margin: 0;
+}
+
+.landing-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.landing-product-card {
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 16px;
+  padding: 28px 24px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.landing-product-card:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.landing-product-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 12px;
+}
+
+.landing-product-rate {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--blue-600);
+  line-height: 1;
+}
+
+.landing-product-rate span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-400);
+}
+
+.landing-product-rate-type {
+  font-size: 12px;
+  color: var(--gray-400);
+  text-transform: capitalize;
+  margin-bottom: 18px;
+}
+
+.landing-product-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--gray-600);
+  margin-bottom: 8px;
+}
+
+.landing-product-detail i {
+  color: var(--gray-400);
+  font-size: 13px;
+}
+
+/* Superadmin Dark Emerald Theme */
+#header.theme-superadmin {
+  background: #0d2e28;
+}
+
+#sidebar.theme-superadmin {
+  background: #0d2e28;
+}
+
+#sidebar.theme-superadmin .nav-item.active {
+  background: var(--emerald-600);
+  color: #fff;
+}
+
+#sidebar.theme-superadmin .nav-item:hover {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+#header.theme-superadmin .org-pill .sq {
+  background: var(--emerald-600);
+}
+
+#sidebar.theme-superadmin .module-brand .sq {
+  background: linear-gradient(135deg, var(--emerald-600), #0d2e28);
+}

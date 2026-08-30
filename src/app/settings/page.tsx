@@ -17,7 +17,7 @@ type StaffUser = {
 
 export default function SettingsPage() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
 
   const [users, setUsers] = useState<StaffUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,9 +77,13 @@ export default function SettingsPage() {
     loadUsers()
   }
 
-  async function toggleActive(u: StaffUser) {
+    async function toggleActive(u: StaffUser) {
     if (u.id === user?.id) {
       setErrorMsg('You cannot deactivate your own account.')
+      return
+    }
+    if (u.role === 'superadmin') {
+      setErrorMsg('You do not have permission to modify a Superadmin account.')
       return
     }
     const { error } = await supabase.from('users').update({ is_active: !u.is_active }).eq('id', u.id)
@@ -154,11 +158,11 @@ export default function SettingsPage() {
                     </span>
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                  <td style={{ display: 'flex', gap: 6 }}>
+                                    <td style={{ display: 'flex', gap: 6 }}>
                     <button className="btn btn-sm btn-ghost" title="Edit user" onClick={() => openEditModal(u)}>
                       <i className="bi bi-pencil" style={{ fontSize: 14 }}></i>
                     </button>
-                    {u.id !== user?.id && (
+                    {u.id !== user?.id && u.role !== 'superadmin' && (
                       <button className="btn btn-sm btn-secondary" onClick={() => toggleActive(u)}>
                         {u.is_active ? 'Deactivate' : 'Activate'}
                       </button>

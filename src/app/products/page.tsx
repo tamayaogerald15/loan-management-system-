@@ -36,7 +36,7 @@ const emptyForm = {
 
 export default function ProductsPage() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin'
 
   const [products, setProducts] = useState<LoanProduct[]>([])
   const [loading, setLoading] = useState(true)
